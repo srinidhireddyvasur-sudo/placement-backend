@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin Dashboard</title><link rel="stylesheet" href="/css/style.css"></head>
+<body>
+<header class="top"><h1>Admin / Placement Officer</h1><span id="who"></span></header>
+<div class="wrap">
+<nav>
+  <button data-t="dash" onclick="show('dash')">Dashboard</button>
+  <button data-t="companies" onclick="show('companies')">Companies</button>
+  <button data-t="jobs" onclick="show('jobs')">Jobs</button>
+  <button data-t="students" onclick="show('students')">Students</button>
+  <button data-t="apps" onclick="show('apps')">Applications</button>
+  <button class="out" onclick="logout()">Logout</button>
+</nav>
+
+<div id="dash" class="tab card"><h2>Reports</h2><div class="grid" id="stats"></div><h3 style="margin-top:20px">Applications by status</h3><div class="grid" id="bystatus"></div></div>
+
+<div id="companies" class="tab card" style="display:none"><h2>Companies</h2>
+<form id="cf"><input type="hidden" id="cid"><div class="row"><div><label>Name *</label><input id="cn" required></div><div><label>Location</label><input id="cl"></div></div>
+<label>Description</label><textarea id="cd" rows="2"></textarea>
+<button class="btn" id="cbtn">Add Company</button> <button type="button" class="btn red" id="ccancel" style="display:none" onclick="resetCompany()">Cancel</button></form>
+<div class="scroll" style="margin-top:16px"><table><thead><tr><th>Name</th><th>Location</th><th>Description</th><th></th></tr></thead><tbody id="cbody"></tbody></table></div></div>
+
+<div id="jobs" class="tab card" style="display:none"><h2>Jobs</h2>
+<form id="jf"><input type="hidden" id="jid"><div class="row">
+ <div><label>Company *</label><input id="jc" list="colist" placeholder="Type company name" required autocomplete="off"><datalist id="colist"></datalist></div>
+ <div><label>Title *</label><input id="jt" required></div>
+ <div><label>Package (LPA)</label><input id="js" type="number" step="0.1" min="0"></div>
+ <div><label>Min CGPA</label><input id="jm" type="number" step="0.01" min="0" max="10" value="0"></div>
+ <div><label>Max backlogs</label><input id="jb" type="number" min="0" value="0"></div>
+ <div><label>Branches (ALL or CSE,IT)</label><input id="jbr" value="ALL"></div>
+ <div><label>Last date</label><input id="jl" type="date"></div>
+</div><label>Description</label><textarea id="jd" rows="2"></textarea>
+<button class="btn" id="jbtn">Post Job</button> <button type="button" class="btn red" id="jcancel" style="display:none" onclick="resetJob()">Cancel</button></form>
+<div class="scroll" style="margin-top:16px"><table><thead><tr><th>Company</th><th>Title</th><th>LPA</th><th>CGPA</th><th>Backlogs</th><th>Branches</th><th>Last Date</th><th></th></tr></thead><tbody id="jbody"></tbody></table></div>
+<div id="elig" style="margin-top:16px"></div></div>
+
+<div id="students" class="tab card" style="display:none"><h2>Students</h2>
+<form id="sf" style="display:none;margin-bottom:16px"><input type="hidden" id="sid"><h3>Edit Student</h3><div class="row">
+ <div><label>Name</label><input id="sn" required></div>
+ <div><label>Email</label><input id="se" type="email"></div>
+ <div><label>Phone</label><input id="sph"></div>
+ <div><label>Branch</label><select id="sb"><option>CSE</option><option>IT</option><option>ECE</option><option>EEE</option><option>MECH</option><option>CIVIL</option><option>OTHER</option></select></div>
+ <div><label>CGPA</label><input id="sc" type="number" step="0.01" min="0" max="10"></div>
+ <div><label>Backlogs</label><input id="sk" type="number" min="0"></div>
+ <div><label>New password (optional)</label><input id="spw" minlength="6" autocomplete="off"></div>
+</div><label>Skills</label><input id="ss">
+<button class="btn">Save Student</button> <button type="button" class="btn red" onclick="closeStudent()">Cancel</button></form>
+<div class="scroll"><table><thead><tr><th>Username</th><th>Name</th><th>Email</th><th>Phone</th><th>Branch</th><th>CGPA</th><th>Backlogs</th><th>Skills</th><th></th></tr></thead><tbody id="sbody"></tbody></table></div></div>
+
+<div id="apps" class="tab card" style="display:none"><h2>Applications</h2><div class="scroll"><table>
+<thead><tr><th>Student</th><th>Branch</th><th>CGPA</th><th>Company</th><th>Job</th><th>Applied</th><th>Status</th><th></th></tr></thead><tbody id="abody"></tbody></table></div></div>
+</div>
+<script src="/js/app.js"></script>
+<script>
+let CO=[],JB=[],ST=[];
+const val=(id,v)=>{$(id).value=v==null?'':v};
+const load={
+ dash:async()=>{
+  const r=await api('/api/admin/reports');
+  const box=(l,v)=>`<div class="stat"><b>${esc(v)}</b>${l}</div>`;
+  $('stats').innerHTML=box('Students',r.students)+box('Companies',r.companies)+box('Jobs',r.jobs)+box('Applications',r.applications)+box('Students Placed',r.placedStudents)+box('Placement %',r.placementPercent+'%');
+  $('bystatus').innerHTML=STAT.map(s=>box(s,r.byStatus[s]||0)).join('');
+ },
+ companies:async()=>{
+  CO=await api('/api/admin/companies');
+  $('cbody').innerHTML=CO.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.location)}</td><td>${esc(c.description)}</td><td><button class="btn sm" onclick="editCompany(${c.id})">Edit</button> <button class="btn sm red" onclick="delCompany(${c.id})">Delete</button></td></tr>`).join('')||'<tr><td colspan="4">No companies yet</td></tr>';
+ },
+ jobs:async()=>{
+  const cs=await api('/api/admin/companies');
+  $('colist').innerHTML=cs.map(c=>`<option value="${esc(c.name)}">`).join('');
+  JB=await api('/api/admin/jobs');
+  $('jbody').innerHTML=JB.map(j=>`<tr><td>${esc(j.company.name)}</td><td>${esc(j.title)}</td><td>${esc(j.salaryLpa)}</td><td>${esc(j.minCgpa)}</td><td>${esc(j.maxBacklogs)}</td><td>${esc(j.branches)}</td><td>${esc(j.lastDate||'-')}</td><td><button class="btn sm" onclick="editJob(${j.id})">Edit</button> <button class="btn sm" onclick="eligible(${j.id})">Eligible</button> <button class="btn sm red" onclick="delJob(${j.id})">Delete</button></td></tr>`).join('')||'<tr><td colspan="8">No jobs yet</td></tr>';
+ },
+ students:async()=>{
+  ST=await api('/api/admin/students');
+  $('sbody').innerHTML=ST.map(s=>`<tr><td>${esc(s.username)}</td><td>${esc(s.name)}</td><td>${esc(s.email)}</td><td>${esc(s.phone)}</td><td>${esc(s.branch)}</td><td>${esc(s.cgpa)}</td><td>${esc(s.backlogs)}</td><td>${esc(s.skills)}</td><td><button class="btn sm" onclick="editStudent(${s.id})">Edit</button> <button class="btn sm red" onclick="delStudent(${s.id})">Delete</button></td></tr>`).join('')||'<tr><td colspan="9">No students yet</td></tr>';
+ },
+ apps:async()=>{
+  const d=await api('/api/admin/applications');
+  $('abody').innerHTML=d.map(a=>`<tr><td>${esc(a.student.name)}</td><td>${esc(a.student.branch)}</td><td>${esc(a.student.cgpa)}</td><td>${esc(a.job.company.name)}</td><td>${esc(a.job.title)}</td><td>${esc((a.appliedOn||'').replace('T',' ').slice(0,16))}</td><td><select onchange="setStatus(${a.id},this.value)">${STAT.map(s=>`<option ${s===a.status?'selected':''}>${s}</option>`).join('')}</select></td><td><button class="btn sm red" onclick="delApp(${a.id})">Delete</button></td></tr>`).join('')||'<tr><td colspan="8">No applications yet</td></tr>';
+ }
+};
+
+function resetCompany(){$('cf').reset();val('cid','');$('cbtn').textContent='Add Company';$('ccancel').style.display='none'}
+function editCompany(id){const c=CO.find(x=>x.id===id);if(!c)return;
+ val('cid',c.id);val('cn',c.name);val('cl',c.location);val('cd',c.description);
+ $('cbtn').textContent='Update Company';$('ccancel').style.display='inline-block';window.scrollTo(0,0)}
+async function delCompany(id){if(!confirm('Delete company and its jobs/applications?'))return;try{await api('/api/admin/companies/'+id,'DELETE');load.companies()}catch(e){alert(e.message)}}
+$('cf').addEventListener('submit',async e=>{e.preventDefault();
+ const id=$('cid').value,body={name:$('cn').value,location:$('cl').value,description:$('cd').value};
+ try{if(id)await api('/api/admin/companies/'+id,'PUT',body);else await api('/api/admin/companies','POST',body);resetCompany();load.companies()}catch(x){alert(x.message)}});
+
+function resetJob(){$('jf').reset();val('jid','');$('jbtn').textContent='Post Job';$('jcancel').style.display='none'}
+function editJob(id){const j=JB.find(x=>x.id===id);if(!j)return;
+ val('jid',j.id);val('jc',j.company.name);val('jt',j.title);val('js',j.salaryLpa);val('jm',j.minCgpa);val('jb',j.maxBacklogs);val('jbr',j.branches);val('jl',j.lastDate);val('jd',j.description);
+ $('jbtn').textContent='Update Job';$('jcancel').style.display='inline-block';window.scrollTo(0,0)}
+async function delJob(id){if(!confirm('Delete this job and its applications?'))return;try{await api('/api/admin/jobs/'+id,'DELETE');load.jobs()}catch(e){alert(e.message)}}
+async function eligible(id){
+ const d=await api('/api/admin/jobs/'+id+'/eligible');
+ $('elig').innerHTML='<h3>Eligible students ('+d.length+')</h3>'+(d.length?'<table><thead><tr><th>Name</th><th>Branch</th><th>CGPA</th><th>Backlogs</th><th>Email</th></tr></thead><tbody>'+d.map(s=>`<tr><td>${esc(s.name)}</td><td>${esc(s.branch)}</td><td>${esc(s.cgpa)}</td><td>${esc(s.backlogs)}</td><td>${esc(s.email)}</td></tr>`).join('')+'</tbody></table>':'<p>No eligible students.</p>');
+}
+$('jf').addEventListener('submit',async e=>{e.preventDefault();
+ const id=$('jid').value;
+ const body={companyName:$('jc').value,title:$('jt').value,description:$('jd').value,salaryLpa:parseFloat($('js').value||0),minCgpa:parseFloat($('jm').value||0),maxBacklogs:parseInt($('jb').value||0),branches:$('jbr').value,lastDate:$('jl').value||null};
+ try{if(id)await api('/api/admin/jobs/'+id,'PUT',body);else await api('/api/admin/jobs','POST',body);resetJob();load.jobs()}catch(x){alert(x.message)}});
+
+function closeStudent(){$('sf').reset();val('sid','');$('sf').style.display='none'}
+function editStudent(id){const s=ST.find(x=>x.id===id);if(!s)return;
+ val('sid',s.id);val('sn',s.name);val('se',s.email);val('sph',s.phone);$('sb').value=s.branch||'CSE';val('sc',s.cgpa);val('sk',s.backlogs);val('ss',s.skills);val('spw','');
+ $('sf').style.display='block';window.scrollTo(0,0)}
+async function delStudent(id){if(!confirm('Delete this student, their login and all their applications?'))return;try{await api('/api/admin/students/'+id,'DELETE');load.students()}catch(e){alert(e.message)}}
+$('sf').addEventListener('submit',async e=>{e.preventDefault();
+ const id=$('sid').value;
+ const body={name:$('sn').value,email:$('se').value,phone:$('sph').value,branch:$('sb').value,cgpa:parseFloat($('sc').value||0),backlogs:parseInt($('sk').value||0),skills:$('ss').value,password:$('spw').value};
+ try{await api('/api/admin/students/'+id,'PUT',body);closeStudent();load.students()}catch(x){alert(x.message)}});
+
+async function setStatus(id,s){try{await api('/api/admin/applications/'+id+'/status','PUT',{status:s})}catch(e){alert(e.message)}}
+async function delApp(id){if(!confirm('Delete this application?'))return;try{await api('/api/admin/applications/'+id,'DELETE');load.apps()}catch(e){alert(e.message)}}
+
+api('/api/auth/me').then(d=>$('who').textContent=d.username);
+show('dash');
+</script></body></html>

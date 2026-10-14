@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Student Dashboard</title><link rel="stylesheet" href="/css/style.css"></head>
+<body>
+<header class="top"><h1>Student Dashboard</h1><span id="who"></span></header>
+<div class="wrap">
+<nav>
+  <button data-t="jobs" onclick="show('jobs')">Jobs</button>
+  <button data-t="apps" onclick="show('apps')">My Applications</button>
+  <button data-t="profile" onclick="show('profile')">My Profile</button>
+  <button class="out" onclick="logout()">Logout</button>
+</nav>
+
+<div id="jobs" class="tab card"><h2>Available Jobs</h2><div class="scroll"><table>
+<thead><tr><th>Company</th><th>Title</th><th>Package (LPA)</th><th>Min CGPA</th><th>Max Backlogs</th><th>Branches</th><th>Last Date</th><th></th></tr></thead>
+<tbody id="jobsBody"></tbody></table></div></div>
+
+<div id="apps" class="tab card" style="display:none"><h2>My Applications</h2><div class="scroll"><table>
+<thead><tr><th>Company</th><th>Job</th><th>Applied On</th><th>Status</th></tr></thead>
+<tbody id="appsBody"></tbody></table></div></div>
+
+<div id="profile" class="tab card" style="display:none"><h2>My Profile</h2>
+<form id="pf"><div class="row">
+  <div><label>Full name</label><input id="pn"></div>
+  <div><label>Email</label><input id="pe" type="email"></div>
+  <div><label>Phone</label><input id="pp"></div>
+  <div><label>Branch</label><select id="pb"><option>CSE</option><option>IT</option><option>ECE</option><option>EEE</option><option>MECH</option><option>CIVIL</option><option>OTHER</option></select></div>
+  <div><label>CGPA</label><input id="pc" type="number" step="0.01" min="0" max="10"></div>
+  <div><label>Backlogs</label><input id="pk" type="number" min="0"></div>
+</div><label>Skills</label><input id="ps"><button class="btn">Save Profile</button></form></div>
+</div>
+<script src="/js/app.js"></script>
+<script>
+const load={
+ jobs:async()=>{
+  const d=await api('/api/student/jobs');
+  $('jobsBody').innerHTML=d.map(x=>{const j=x.job;let a;
+   if(x.applied)a='<span class="tag ok">Applied</span>';
+   else if(x.closed)a='<span class="tag no">Closed</span>';
+   else if(!x.eligible)a='<span class="tag no">Not eligible</span>';
+   else a=`<button class="btn sm" onclick="apply(${j.id})">Apply</button>`;
+   return `<tr><td>${esc(j.company.name)}</td><td>${esc(j.title)}<br><small>${esc(j.description)}</small></td><td>${esc(j.salaryLpa)}</td><td>${esc(j.minCgpa)}</td><td>${esc(j.maxBacklogs)}</td><td>${esc(j.branches)}</td><td>${esc(j.lastDate||'-')}</td><td>${a}</td></tr>`}).join('')||'<tr><td colspan="8">No jobs posted yet</td></tr>';
+ },
+ apps:async()=>{
+  const d=await api('/api/student/applications');
+  $('appsBody').innerHTML=d.map(a=>`<tr><td>${esc(a.job.company.name)}</td><td>${esc(a.job.title)}</td><td>${esc((a.appliedOn||'').replace('T',' ').slice(0,16))}</td><td><span class="tag ${a.status==='SELECTED'?'ok':a.status==='REJECTED'?'no':''}">${esc(a.status)}</span></td></tr>`).join('')||'<tr><td colspan="4">No applications yet</td></tr>';
+ },
+ profile:async()=>{
+  const s=await api('/api/student/profile');
+  $('pn').value=s.name||'';$('pe').value=s.email||'';$('pp').value=s.phone||'';$('pb').value=s.branch||'CSE';
+  $('pc').value=s.cgpa;$('pk').value=s.backlogs;$('ps').value=s.skills||'';
+ }
+};
+async function apply(id){try{await api('/api/student/jobs/'+id+'/apply','POST');alert('Applied successfully');load.jobs()}catch(e){alert(e.message)}}
+$('pf').addEventListener('submit',async e=>{e.preventDefault();
+ try{await api('/api/student/profile','PUT',{name:$('pn').value,email:$('pe').value,phone:$('pp').value,branch:$('pb').value,
+  cgpa:parseFloat($('pc').value||0),backlogs:parseInt($('pk').value||0),skills:$('ps').value});alert('Profile saved')}catch(x){alert(x.message)}});
+api('/api/auth/me').then(d=>$('who').textContent=d.username);
+show('jobs');
+</script></body></html>
